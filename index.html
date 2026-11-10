@@ -189,11 +189,37 @@
   .log td.nums { font-variant-numeric: tabular-nums; }
   .tag { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: var(--surface-2); white-space: nowrap; }
   @media (max-width: 700px) { .log-head { flex-wrap: wrap; gap: 8px; } .log-head input { width: 100%; } }
+  /* login */
+  body.locked > :not(.login):not(.toast) { display: none !important; }
+  .login { position: fixed; inset: 0; display: none; place-items: center; background: var(--bg); z-index: 50; padding: 16px; }
+  body.locked .login { display: grid; }
+  .login form { width: min(360px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); padding: 28px 24px; display: grid; gap: 14px; text-align: center; }
+  .login img { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; object-position: 70% 30%; border: 3px solid var(--accent); margin: 0 auto; }
+  .login h2 { margin: 0; font-size: 20px; }
+  .login .err { color: var(--danger); font-size: 13px; min-height: 18px; }
+  /* comprovantes */
+  .comps { display: grid; gap: 8px; }
+  .comps-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); }
+  .comps-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+  .comp { position: relative; aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); overflow: hidden; cursor: zoom-in; display: grid; place-items: center; font-size: 12px; color: var(--muted); }
+  .comp img { width: 100%; height: 100%; object-fit: cover; }
+  .comp .x { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--surface); color: var(--danger); cursor: pointer; font-size: 13px; line-height: 22px; padding: 0; box-shadow: var(--shadow); }
+  .comps-empty { font-size: 13px; color: var(--muted); }
+  .clip { color: var(--muted); font-size: 12px; margin-left: 4px; }
   .toast { position: fixed; left: 50%; top: 20px; transform: translateX(-50%) translateY(-20px); opacity: 0; background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; transition: .2s; pointer-events: none; z-index: 10; }
   .toast.show { opacity: 1; transform: translateX(-50%); }
 </style>
 </head>
-<body>
+<body class="locked">
+<div class="login">
+  <form id="loginForm">
+    <img alt="Aurora" src="" id="loginImg">
+    <h2>Rifa</h2>
+    <input type="password" name="senha" placeholder="Senha" autocomplete="current-password" required>
+    <button class="btn primary" type="submit">Entrar</button>
+    <div class="err" id="loginErr"></div>
+  </form>
+</div>
 <div class="wrap screen">
   <header>
     <div>
@@ -211,6 +237,7 @@
       <button class="btn" id="exportBtn">Exportar</button>
       <button class="btn" id="importBtn">Importar</button>
       <input type="file" id="importFile" accept="application/json" hidden>
+      <button class="btn" id="logoutBtn">Sair</button>
     </div>
   </header>
 
@@ -292,6 +319,11 @@
     <label>Nome *<input name="name" required autocomplete="off"></label>
     <label>Telefone / WhatsApp<input name="phone" inputmode="tel" autocomplete="off"></label>
     <label>Observação<textarea name="note" rows="2"></textarea></label>
+    <div class="comps">
+      <div class="comps-head"><span>Comprovantes Pix</span><button type="button" class="btn sm" id="compAdd">+ Anexar</button></div>
+      <input type="file" id="compFile" accept="image/*,application/pdf" multiple hidden>
+      <div class="comps-list" id="compList"></div>
+    </div>
     <div class="actions">
       <button type="button" class="btn danger" id="delPerson">Excluir pessoa</button>
       <div>
@@ -305,9 +337,10 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// API (Cloudflare Worker). Vazio = só localStorage.
-const API = 'https://rifa-api.gustamc777.workers.dev/state';
-const PASS_KEY = 'rifa-senha';
+// API (Cloudflare Worker). Tudo exige login.
+const API = 'https://rifa-api.gustamc777.workers.dev';
+const TOKEN_LS = 'rifa-token';
+try { localStorage.removeItem('rifa-senha'); } catch {} // versão antiga guardava a senha
 const KEY = 'rifa-100-v2';
 const OLD_KEY = 'rifa-100-v1';
 const TOTAL = 200;
@@ -357,42 +390,35 @@ function save() {
   if (API) { dirty = true; clearTimeout(pushT); pushT = setTimeout(push, 400); }
 }
 
-// ---------- nuvem ----------
-let dirty = false, pushT = null, pushing = false;
+// ---------- nuvem (com token) ----------
+let dirty = false, pushT = null, pushing = false, started = false;
 function syncStatus(txt, kind) {
   const el = $('sync'); if (!el) return;
   el.textContent = txt; el.dataset.kind = kind || '';
 }
-function getPass(ask) {
-  let p = '';
-  try { p = localStorage.getItem(PASS_KEY) || ''; } catch {}
-  if (!p && ask) {
-    p = (prompt('Senha para gravar na rifa:') || '').trim();
-    if (p) try { localStorage.setItem(PASS_KEY, p); } catch {}
-  }
-  return p;
+const getToken = () => { try { return localStorage.getItem(TOKEN_LS) || ''; } catch { return ''; } };
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, { ...opts, cache: 'no-store', headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + getToken() } });
+  if (r.status === 401) { logout('Sessão expirada. Entre de novo.'); throw new Error('401'); }
+  if (!r.ok) throw new Error(String(r.status));
+  return r;
 }
 async function push() {
+  if (!getToken()) return;
   if (pushing) { pushT = setTimeout(push, 400); return; }
-  const pass = getPass(true);
-  if (!pass) { syncStatus('Não salvo na nuvem (sem senha)', 'err'); return; }
   pushing = true; dirty = false; syncStatus('Salvando…', 'busy');
   try {
-    const r = await fetch(API, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Senha': pass }, body: JSON.stringify(state) });
-    if (r.status === 401) {
-      try { localStorage.removeItem(PASS_KEY); } catch {}
-      dirty = true; syncStatus('Senha incorreta: não salvo', 'err'); toast('Senha incorreta. Altere de novo para tentar outra.');
-    } else if (!r.ok) throw 0;
-    else syncStatus('Salvo na nuvem', 'ok');
-  } catch { dirty = true; syncStatus('Erro ao salvar: tentando de novo', 'err'); pushT = setTimeout(push, 5000); }
+    await api('/state', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state) });
+    syncStatus('Salvo na nuvem', 'ok');
+  } catch (e) {
+    if (e.message !== '401') { dirty = true; syncStatus('Erro ao salvar: tentando de novo', 'err'); pushT = setTimeout(push, 5000); }
+  }
   pushing = false;
 }
 async function pull() {
-  if (!API || dirty || pushing || $('dlg').open) return;
+  if (!getToken() || dirty || pushing || $('dlg').open) return;
   try {
-    const r = await fetch(API, { cache: 'no-store' });
-    if (!r.ok) throw 0;
-    const remote = await r.json();
+    const remote = await (await api('/state')).json();
     if (remote && remote.people && remote.nums) {
       remote.log = remote.log || [];
       if (JSON.stringify(remote) !== JSON.stringify(state)) {
@@ -403,11 +429,118 @@ async function pull() {
       }
       syncStatus('Sincronizado', 'ok');
     } else if (state.people.length || Object.keys(state.nums).length) {
-      // nuvem vazia: sobe o que já existe neste navegador
-      save();
+      save(); // nuvem vazia: sobe o que já existe neste navegador
     } else syncStatus('Sincronizado', 'ok');
-  } catch { syncStatus('Sem conexão com a nuvem', 'err'); }
+  } catch (e) { if (e.message !== '401') syncStatus('Sem conexão com a nuvem', 'err'); }
 }
+function start() {
+  document.body.classList.remove('locked');
+  render();
+  syncStatus('Carregando…', 'busy');
+  pull();
+  if (!started) {
+    started = true;
+    setInterval(pull, 20000);
+    window.addEventListener('focus', pull);
+  }
+}
+function logout(msg, wipe) {
+  // wipe = botão Sair: apaga também a cópia local. Sem wipe (token vencido / primeira vez) mantém,
+  // para que dados que só existem neste navegador subam para a nuvem depois do login.
+  try { localStorage.removeItem(TOKEN_LS); if (wipe) localStorage.removeItem(KEY); } catch {}
+  if (wipe) state = blank();
+  dirty = false; clearTimeout(pushT);
+  if ($('dlg').open) $('dlg').close();
+  document.body.classList.add('locked');
+  $('loginErr').textContent = msg || '';
+  setTimeout(() => $('loginForm').senha.focus(), 30);
+}
+$('loginForm').onsubmit = async ev => {
+  ev.preventDefault();
+  const f = ev.target, btn = f.querySelector('button');
+  btn.disabled = true; $('loginErr').textContent = '';
+  try {
+    const r = await fetch(API + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ senha: f.senha.value }) });
+    if (r.status === 401) { $('loginErr').textContent = 'Senha incorreta'; return; }
+    if (!r.ok) throw 0;
+    const { token } = await r.json();
+    try { localStorage.setItem(TOKEN_LS, token); } catch {}
+    f.reset(); start();
+  } catch { $('loginErr').textContent = 'Não foi possível conectar'; }
+  finally { btn.disabled = false; }
+};
+
+// ---------- comprovantes ----------
+const compUrls = {};
+async function compBlob(id) {
+  if (!compUrls[id]) compUrls[id] = URL.createObjectURL(await (await api('/comprovantes/' + id)).blob());
+  return compUrls[id];
+}
+function shrink(file) {
+  // imagem: reduz para no máximo 1600px e JPEG 0,8; PDF vai como está
+  if (file.type === 'application/pdf') return Promise.resolve(file);
+  return new Promise((ok, fail) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      c.toBlob(b => b ? ok(b) : fail(), 'image/jpeg', 0.8);
+    };
+    img.onerror = fail;
+    img.src = URL.createObjectURL(file);
+  });
+}
+function renderComps() {
+  const p = person(editingPid); if (!p) return;
+  const box = $('compList');
+  box.innerHTML = '';
+  const cs = p.comprovantes || [];
+  if (!cs.length) { box.innerHTML = '<div class="comps-empty">Nenhum comprovante.</div>'; return; }
+  cs.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'comp'; d.title = `${c.nome} · ${new Date(c.at).toLocaleString('pt-BR')}`;
+    d.innerHTML = c.tipo === 'application/pdf' ? 'PDF' : '…';
+    const x = document.createElement('button');
+    x.type = 'button'; x.className = 'x'; x.textContent = '✕'; x.title = 'Remover';
+    d.appendChild(x);
+    if (c.tipo !== 'application/pdf') compBlob(c.id).then(u => { const im = new Image(); im.src = u; d.firstChild.replaceWith(im); }).catch(() => { d.firstChild.textContent = 'erro'; });
+    d.onclick = async ev => {
+      if (ev.target === x) {
+        if (!confirm(`Remover o comprovante ${c.nome}?`)) return;
+        try { await api('/comprovantes/' + c.id, { method: 'DELETE' }); } catch (e) { if (e.message === '401') return; }
+        p.comprovantes = p.comprovantes.filter(y => y.id !== c.id);
+        log('Comprovante', p.name, '', `Removeu ${c.nome}`);
+        save(); render(); renderComps();
+        return;
+      }
+      try { window.open(await compBlob(c.id), '_blank'); } catch { toast('Não foi possível abrir'); }
+    };
+    box.appendChild(d);
+  });
+}
+$('compAdd').onclick = () => $('compFile').click();
+$('compFile').onchange = async ev => {
+  const p = person(editingPid);
+  const files = [...ev.target.files]; ev.target.value = '';
+  for (const f of files) {
+    if (!/^image\/|^application\/pdf$/.test(f.type)) { toast(`${f.name}: tipo não aceito`); continue; }
+    toast(`Enviando ${f.name}…`);
+    try {
+      const b = await shrink(f);
+      if (b.size > 5 * 1024 * 1024) { toast(`${f.name}: maior que 5 MB`); continue; }
+      const { id } = await (await api('/comprovantes', { method: 'POST', headers: { 'Content-Type': b.type }, body: b })).json();
+      p.comprovantes = p.comprovantes || [];
+      p.comprovantes.push({ id, nome: f.name, tipo: b.type, at: Date.now() });
+      log('Comprovante', p.name, '', `Anexou ${f.name}`);
+      save(); render(); renderComps();
+      toast('Comprovante anexado');
+    } catch (e) { if (e.message !== '401') toast(`Falha ao enviar ${f.name}`); }
+  }
+};
+
 function newPerson(s, name, phone = '', note = '') {
   const i = s.seq++;
   const p = { id: 'p' + Date.now().toString(36) + i, name, phone: phone || '', note: note || '', hue: Math.round(((i * HUE_STEP) % 1) * 360) };
@@ -629,6 +762,7 @@ function openPerson(pid) {
   $('dTitle').textContent = p.name;
   const ns = numsOf(pid);
   $('dSub').textContent = ns.length ? `Números: ${ns.map(pad).join(', ')}` : 'Sem números';
+  renderComps();
   $('dlg').showModal();
 }
 $('pForm').onsubmit = ev => {
@@ -645,9 +779,11 @@ $('pForm').onsubmit = ev => {
 $('cancelDlg').onclick = () => $('dlg').close();
 $('delPerson').onclick = () => {
   const p = person(editingPid), ns = numsOf(editingPid);
-  if (!confirm(`Excluir ${p.name}${ns.length ? ` e liberar ${ns.length} número${ns.length > 1 ? 's' : ''}` : ''}?`)) return;
+  const nc = (p.comprovantes || []).length;
+  if (!confirm(`Excluir ${p.name}${ns.length ? ` e liberar ${ns.length} número${ns.length > 1 ? 's' : ''}` : ''}${nc ? ` (e apagar ${nc} comprovante${nc > 1 ? 's' : ''})` : ''}?`)) return;
   log('Exclusão', p.name, list(ns), ns.length ? 'Pessoa excluída e números liberados' : 'Pessoa excluída');
   ns.forEach(n => delete state.nums[n]);
+  (p.comprovantes || []).forEach(c => api('/comprovantes/' + c.id, { method: 'DELETE' }).catch(() => {}));
   state.people = state.people.filter(x => x.id !== editingPid);
   if (focusPid === editingPid) focusPid = null;
   save(); render(); $('dlg').close();
@@ -699,13 +835,9 @@ function toast(msg) {
   clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 2000);
 }
 
-render();
-if (API) {
-  syncStatus('Carregando…', 'busy');
-  pull();
-  setInterval(pull, 20000);
-  window.addEventListener('focus', pull);
-}
+$('logoutBtn').onclick = () => logout('', true);
+$('loginImg').src = document.querySelector('.mascote').src;
+if (getToken()) start(); else logout();
 </script>
 </body>
 </html>
