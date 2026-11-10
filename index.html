@@ -16,6 +16,7 @@
     --accent-soft: #fde6dc;
     --accent-text: #ffffff;
     --danger: #c92a2a;
+    --ok: #2b8a3e;
     --sel: #1d1b18;
     --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.08);
     --radius: 14px;
@@ -37,6 +38,7 @@
       --accent-soft: #3a2218;
       --accent-text: #1a0f0a;
       --danger: #ff6b6b;
+      --ok: #69db7c;
       --sel: #f1eee9;
       --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.4);
       --pal-s: 60%;
@@ -56,6 +58,12 @@
   header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
   h1 { margin: 0; font-size: 22px; letter-spacing: -.02em; }
   h1 span { color: var(--accent); }
+  .sync { align-self: center; font-size: 12px; color: var(--muted); }
+  .sync::before { content: "●"; margin-right: 5px; }
+  .sync[data-kind=ok]::before { color: var(--ok); }
+  .sync[data-kind=busy]::before { color: var(--muted); }
+  .sync[data-kind=err] { color: var(--danger); }
+  .sync:empty { display: none; }
   h1 { display: flex; align-items: center; gap: 10px; }
   .mascote { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; object-position: 70% 30%; border: 2px solid var(--accent); transition: transform .2s; transform-origin: left top; cursor: zoom-in; position: relative; z-index: 20; }
   .mascote:hover { transform: scale(4); border-width: 1px; box-shadow: var(--shadow); }
@@ -199,6 +207,7 @@
       <span><i class="ex sel"></i>Selecionado</span>
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap">
+      <span class="sync" id="sync"></span>
       <button class="btn" id="exportBtn">Exportar</button>
       <button class="btn" id="importBtn">Importar</button>
       <input type="file" id="importFile" accept="application/json" hidden>
@@ -296,6 +305,9 @@
 <div class="toast" id="toast"></div>
 
 <script>
+// API (Cloudflare Worker). Vazio = só localStorage.
+const API = 'https://rifa-api.gustamc777.workers.dev/state';
+const PASS_KEY = 'rifa-senha';
 const KEY = 'rifa-100-v2';
 const OLD_KEY = 'rifa-100-v1';
 const TOTAL = 200;
@@ -341,8 +353,60 @@ function load() {
   return s;
 }
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(state)); }
-  catch { toast('Não foi possível salvar no navegador'); }
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  if (API) { dirty = true; clearTimeout(pushT); pushT = setTimeout(push, 400); }
+}
+
+// ---------- nuvem ----------
+let dirty = false, pushT = null, pushing = false;
+function syncStatus(txt, kind) {
+  const el = $('sync'); if (!el) return;
+  el.textContent = txt; el.dataset.kind = kind || '';
+}
+function getPass(ask) {
+  let p = '';
+  try { p = localStorage.getItem(PASS_KEY) || ''; } catch {}
+  if (!p && ask) {
+    p = (prompt('Senha para gravar na rifa:') || '').trim();
+    if (p) try { localStorage.setItem(PASS_KEY, p); } catch {}
+  }
+  return p;
+}
+async function push() {
+  if (pushing) { pushT = setTimeout(push, 400); return; }
+  const pass = getPass(true);
+  if (!pass) { syncStatus('Não salvo na nuvem (sem senha)', 'err'); return; }
+  pushing = true; dirty = false; syncStatus('Salvando…', 'busy');
+  try {
+    const r = await fetch(API, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Senha': pass }, body: JSON.stringify(state) });
+    if (r.status === 401) {
+      try { localStorage.removeItem(PASS_KEY); } catch {}
+      dirty = true; syncStatus('Senha incorreta: não salvo', 'err'); toast('Senha incorreta. Altere de novo para tentar outra.');
+    } else if (!r.ok) throw 0;
+    else syncStatus('Salvo na nuvem', 'ok');
+  } catch { dirty = true; syncStatus('Erro ao salvar: tentando de novo', 'err'); pushT = setTimeout(push, 5000); }
+  pushing = false;
+}
+async function pull() {
+  if (!API || dirty || pushing || $('dlg').open) return;
+  try {
+    const r = await fetch(API, { cache: 'no-store' });
+    if (!r.ok) throw 0;
+    const remote = await r.json();
+    if (remote && remote.people && remote.nums) {
+      remote.log = remote.log || [];
+      if (JSON.stringify(remote) !== JSON.stringify(state)) {
+        state = remote;
+        try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+        $('price').value = state.price || '';
+        render();
+      }
+      syncStatus('Sincronizado', 'ok');
+    } else if (state.people.length || Object.keys(state.nums).length) {
+      // nuvem vazia: sobe o que já existe neste navegador
+      save();
+    } else syncStatus('Sincronizado', 'ok');
+  } catch { syncStatus('Sem conexão com a nuvem', 'err'); }
 }
 function newPerson(s, name, phone = '', note = '') {
   const i = s.seq++;
@@ -636,6 +700,12 @@ function toast(msg) {
 }
 
 render();
+if (API) {
+  syncStatus('Carregando…', 'busy');
+  pull();
+  setInterval(pull, 20000);
+  window.addEventListener('focus', pull);
+}
 </script>
 </body>
 </html>
