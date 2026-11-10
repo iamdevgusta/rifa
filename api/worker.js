@@ -1,13 +1,3 @@
-// API da rifa: um arquivo só. Tudo exige login, nada é entregue sem token.
-//
-// POST   /login              { senha } -> { token }   (compara o hash da senha com SENHA_HASH)
-// GET    /state              -> JSON da rifa
-// PUT    /state              -> grava o JSON inteiro
-// POST   /comprovantes       corpo = imagem/PDF (Content-Type image/* ou application/pdf) -> { id }
-// GET    /comprovantes/:id   -> arquivo
-// DELETE /comprovantes/:id
-//
-// Segredos (wrangler secret put): SENHA_HASH = sha256("rifa:" + senha) em hex; TOKEN_KEY = chave aleatória do token.
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -51,7 +41,7 @@ export default {
       let senha = '';
       try { senha = String((await req.json()).senha || ''); } catch {}
       if (!iguais(await sha256('rifa:' + senha), env.SENHA_HASH)) {
-        await new Promise(r => setTimeout(r, 800)); // freia tentativa em massa
+        await new Promise(r => setTimeout(r, 800));
         return erro('senha incorreta', 401);
       }
       const exp = String(Date.now() + TOKEN_DIAS * 864e5);
@@ -67,7 +57,7 @@ export default {
         if (body.length > 1_000_000) return erro('muito grande', 413);
         try { JSON.parse(body); } catch { return erro('json inválido', 400); }
         const prev = await env.RIFA.get('state');
-        if (prev) await env.RIFA.put('state-anterior', prev); // backup da última versão
+        if (prev) await env.RIFA.put('state-anterior', prev);
         await env.RIFA.put('state', body);
         return resp('{"ok":true}');
       }

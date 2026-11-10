@@ -20,7 +20,6 @@
     --sel: #1d1b18;
     --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.08);
     --radius: 14px;
-    /* paleta das pessoas: o matiz (--h) vem de cada nome */
     --pal-s: 72%;
     --pal-l: 58%;
     --pal-dark-l: 32%;
@@ -51,7 +50,6 @@
   body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   .wrap { max-width: 1400px; margin: 0 auto; padding: 10px 16px; }
   .wrap + .wrap { padding-bottom: 100px; }
-  /* primeira tela: cabeçalho + grade ocupam exatamente a altura da janela */
   .screen { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
   .screen .layout { flex: 1; min-height: 0; }
   main { display: flex; flex-direction: column; min-height: 0; height: 100%; }
@@ -103,8 +101,6 @@
   .cell:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
   .cell .n { font-size: clamp(12px, 2.2vh, 18px); font-weight: 700; font-variant-numeric: tabular-nums; }
   .cell .who { font-size: 10.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .9; }
-  /* reservado e pago têm o mesmo fundo (cor da pessoa);
-     pago ganha um $ grande e translúcido atrás do número + barra inferior de 5px */
   .cell.owned { background: hsl(var(--h) var(--pal-s) var(--pal-l)); color: var(--pal-text); border-color: transparent; overflow: hidden; }
   .cell .n, .cell .who { position: relative; z-index: 1; }
   .cell.paid { border-bottom: 5px solid hsl(var(--h) var(--pal-s) var(--pal-dark-l)); }
@@ -122,7 +118,6 @@
   .legend .ex.pag { border-color: transparent; border-bottom: 4px solid hsl(var(--h) var(--pal-s) var(--pal-dark-l)); background: hsl(var(--h) var(--pal-s) var(--pal-l)); color: var(--pal-text); font: normal 800 12px/14px system-ui; text-align: center; }
   .legend .ex.pag::before { content: "$"; opacity: .45; }
   .legend .ex.sel { outline: 2px solid var(--sel); outline-offset: 1px; }
-  /* telas estreitas: volta ao fluxo normal com rolagem */
   @media (max-width: 900px) {
     .screen { height: auto; }
     .layout { grid-template-columns: 1fr; }
@@ -189,15 +184,32 @@
   .log td.nums { font-variant-numeric: tabular-nums; }
   .tag { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: var(--surface-2); white-space: nowrap; }
   @media (max-width: 700px) { .log-head { flex-wrap: wrap; gap: 8px; } .log-head input { width: 100%; } }
-  /* login */
   body.locked > :not(.login):not(.toast) { display: none !important; }
-  .login { position: fixed; inset: 0; display: none; place-items: center; background: var(--bg); z-index: 50; padding: 16px; }
+  .login { position: fixed; inset: 0; display: none; place-items: center; background: var(--bg); z-index: 50; padding: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); overflow-y: auto; }
   body.locked .login { display: grid; }
   .login form { width: min(360px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); padding: 28px 24px; display: grid; gap: 14px; text-align: center; }
   .login img { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; object-position: 70% 30%; border: 3px solid var(--accent); margin: 0 auto; }
   .login h2 { margin: 0; font-size: 20px; }
-  .login .err { color: var(--danger); font-size: 13px; min-height: 18px; }
-  /* comprovantes */
+  .login .err { color: var(--danger); font-size: 14px; min-height: 20px; }
+  .login input { font-size: 16px; height: 50px; padding: 0 48px 0 14px; border-radius: 12px; }
+  .pass { position: relative; }
+  .eye { position: absolute; right: 4px; top: 4px; width: 42px; height: 42px; border: 0; background: none; border-radius: 10px; cursor: pointer; font-size: 18px; opacity: .6; }
+  .eye.on { opacity: 1; }
+  .login .go { height: 50px; font-size: 16px; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .login .go .spin { display: none; }
+  .login.busy .go .spin { display: inline-block; }
+  .login.busy .go { opacity: .85; pointer-events: none; }
+  .login.shake form { animation: shake .35s; }
+  @keyframes shake { 25% { transform: translateX(-8px); } 50% { transform: translateX(8px); } 75% { transform: translateX(-4px); } }
+  .spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .boot { display: none; flex-direction: column; align-items: center; gap: 16px; color: var(--muted); font-size: 15px; }
+  .boot img { width: 84px; height: 84px; border-radius: 50%; object-fit: cover; object-position: 70% 30%; border: 3px solid var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+  .boot .spin { color: var(--accent); width: 26px; height: 26px; }
+  @keyframes pulse { 50% { transform: scale(1.06); opacity: .8; } }
+  body.booting .login form { display: none; }
+  body.booting .boot { display: flex; }
+  @media (max-width: 480px) { .login { place-items: start center; padding-top: 18vh; } .login form { border: 0; box-shadow: none; background: transparent; padding: 8px 4px; } }
   .comps { display: grid; gap: 8px; }
   .comps-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); }
   .comps-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
@@ -212,13 +224,17 @@
 </head>
 <body class="locked">
 <div class="login">
-  <form id="loginForm">
+  <form id="loginForm" novalidate>
     <img alt="Aurora" src="" id="loginImg">
     <h2>Rifa</h2>
-    <input type="password" name="senha" placeholder="Senha" autocomplete="current-password" required>
-    <button class="btn primary" type="submit">Entrar</button>
-    <div class="err" id="loginErr"></div>
+    <div class="pass">
+      <input type="password" name="senha" placeholder="Senha" autocomplete="current-password" enterkeyhint="go" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button type="button" class="eye" id="eyeBtn" aria-label="Mostrar senha">👁</button>
+    </div>
+    <button class="btn primary go" type="submit"><span class="spin"></span><span class="lbl">Entrar</span></button>
+    <div class="err" id="loginErr" role="alert"></div>
   </form>
+  <div class="boot"><img alt="" src="" id="bootImg"><span class="spin"></span><span>Carregando a rifa…</span></div>
 </div>
 <div class="wrap screen">
   <header>
@@ -337,16 +353,12 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// API (Cloudflare Worker). Tudo exige login.
 const API = 'https://rifa-api.gustamc777.workers.dev';
 const TOKEN_LS = 'rifa-token';
-try { localStorage.removeItem('rifa-senha'); } catch {} // versão antiga guardava a senha
+try { localStorage.removeItem('rifa-senha'); } catch {}
 const KEY = 'rifa-100-v2';
 const OLD_KEY = 'rifa-100-v1';
 const TOTAL = 200;
-// Paleta: cada novo nome anda 0,382 do círculo de matiz (razão áurea).
-// Assim dois nomes seguidos nunca ficam a menos de 0,1 (36°) de distância,
-// e as cores se espalham sem repetir.
 const HUE_STEP = 0.381966;
 
 const $ = id => document.getElementById(id);
@@ -359,7 +371,6 @@ let editingPid = null;
 
 function blank() { return { people: [], nums: {}, seq: 0, log: [] }; }
 const list = ns => [...ns].sort((a, b) => a - b).map(pad).join(', ');
-// cada alteração vira uma linha: { t, acao, pessoa, numeros, detalhe }
 function log(acao, pessoa = '', numeros = '', detalhe = '') {
   state.log = state.log || [];
   state.log.unshift({ t: Date.now(), acao, pessoa, numeros, detalhe });
@@ -371,7 +382,6 @@ function load() {
     const s = JSON.parse(localStorage.getItem(KEY));
     if (s && s.people && s.nums) { s.log = s.log || []; return s; }
   } catch {}
-  // migra a versão anterior (um registro por número)
   const s = blank();
   try {
     const old = JSON.parse(localStorage.getItem(OLD_KEY)) || {};
@@ -390,7 +400,6 @@ function save() {
   if (API) { dirty = true; clearTimeout(pushT); pushT = setTimeout(push, 400); }
 }
 
-// ---------- nuvem (com token) ----------
 let dirty = false, pushT = null, pushing = false, started = false;
 function syncStatus(txt, kind) {
   const el = $('sync'); if (!el) return;
@@ -429,15 +438,22 @@ async function pull() {
       }
       syncStatus('Sincronizado', 'ok');
     } else if (state.people.length || Object.keys(state.nums).length) {
-      save(); // nuvem vazia: sobe o que já existe neste navegador
+      save();
     } else syncStatus('Sincronizado', 'ok');
   } catch (e) { if (e.message !== '401') syncStatus('Sem conexão com a nuvem', 'err'); }
 }
-function start() {
+function tokenOk() {
+  const exp = Number(getToken().split('.')[0]);
+  return exp > Date.now();
+}
+async function start() {
+  document.body.classList.add('locked', 'booting');
+  syncStatus('Carregando…', 'busy');
+  await pull();
+  document.body.classList.remove('booting');
+  if (!getToken()) return;
   document.body.classList.remove('locked');
   render();
-  syncStatus('Carregando…', 'busy');
-  pull();
   if (!started) {
     started = true;
     setInterval(pull, 20000);
@@ -445,39 +461,51 @@ function start() {
   }
 }
 function logout(msg, wipe) {
-  // wipe = botão Sair: apaga também a cópia local. Sem wipe (token vencido / primeira vez) mantém,
-  // para que dados que só existem neste navegador subam para a nuvem depois do login.
   try { localStorage.removeItem(TOKEN_LS); if (wipe) localStorage.removeItem(KEY); } catch {}
   if (wipe) state = blank();
   dirty = false; clearTimeout(pushT);
   if ($('dlg').open) $('dlg').close();
+  document.body.classList.remove('booting');
   document.body.classList.add('locked');
   $('loginErr').textContent = msg || '';
   setTimeout(() => $('loginForm').senha.focus(), 30);
 }
+$('eyeBtn').onclick = () => {
+  const i = $('loginForm').senha, on = i.type === 'password';
+  i.type = on ? 'text' : 'password';
+  $('eyeBtn').classList.toggle('on', on);
+  $('eyeBtn').setAttribute('aria-label', on ? 'Ocultar senha' : 'Mostrar senha');
+  i.focus();
+};
 $('loginForm').onsubmit = async ev => {
   ev.preventDefault();
-  const f = ev.target, btn = f.querySelector('button');
-  btn.disabled = true; $('loginErr').textContent = '';
+  const f = ev.target, box = document.querySelector('.login');
+  const senha = f.senha.value;
+  const fail = msg => {
+    $('loginErr').textContent = msg;
+    box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+    f.senha.select();
+  };
+  if (!senha) return fail('Digite a senha');
+  box.classList.add('busy'); f.querySelector('.lbl').textContent = 'Entrando…'; $('loginErr').textContent = '';
   try {
-    const r = await fetch(API + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ senha: f.senha.value }) });
-    if (r.status === 401) { $('loginErr').textContent = 'Senha incorreta'; return; }
+    const r = await fetch(API + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ senha }) });
+    if (r.status === 401) return fail('Senha incorreta');
     if (!r.ok) throw 0;
     const { token } = await r.json();
     try { localStorage.setItem(TOKEN_LS, token); } catch {}
-    f.reset(); start();
-  } catch { $('loginErr').textContent = 'Não foi possível conectar'; }
-  finally { btn.disabled = false; }
+    f.reset(); f.senha.type = 'password'; $('eyeBtn').classList.remove('on');
+    start();
+  } catch { fail('Não foi possível conectar'); }
+  finally { box.classList.remove('busy'); f.querySelector('.lbl').textContent = 'Entrar'; }
 };
 
-// ---------- comprovantes ----------
 const compUrls = {};
 async function compBlob(id) {
   if (!compUrls[id]) compUrls[id] = URL.createObjectURL(await (await api('/comprovantes/' + id)).blob());
   return compUrls[id];
 }
 function shrink(file) {
-  // imagem: reduz para no máximo 1600px e JPEG 0,8; PDF vai como está
   if (file.type === 'application/pdf') return Promise.resolve(file);
   return new Promise((ok, fail) => {
     const img = new Image();
@@ -578,7 +606,6 @@ function renderGrid() {
     const okF = filter === 'all' || filter === status;
     const okQ = !q || pad(i).includes(q) || (p && p.name.toLowerCase().includes(q));
     const okP = !focusPid || (p && p.id === focusPid);
-    // filtro de status esconde; busca e pessoa em foco só apagam (mantém a posição)
     if (!okF) b.classList.add('hide');
     else if (!okQ || !okP) b.classList.add('dim');
     else shown++;
@@ -693,7 +720,6 @@ function assign(pid) {
   toast(`${count} número${count > 1 ? 's' : ''} para ${p.name}` + (moved ? ` (${moved} trocado${moved > 1 ? 's' : ''} de dono)` : ''));
 }
 
-// seleção: clique alterna; arrastar pinta vários
 let dragging = false, dragMode = true;
 $('grid').addEventListener('pointerdown', ev => {
   const c = ev.target.closest('.cell'); if (!c) return;
@@ -836,8 +862,8 @@ function toast(msg) {
 }
 
 $('logoutBtn').onclick = () => logout('', true);
-$('loginImg').src = document.querySelector('.mascote').src;
-if (getToken()) start(); else logout();
+$('loginImg').src = $('bootImg').src = document.querySelector('.mascote').src;
+if (tokenOk()) start(); else logout();
 </script>
 </body>
 </html>

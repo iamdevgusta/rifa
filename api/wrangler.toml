@@ -2,7 +2,6 @@ name = "rifa-api"
 main = "worker.js"
 compatibility_date = "2026-10-01"
 
-# banco KV da rifa
 [[kv_namespaces]]
 binding = "RIFA"
 id = "18a1a4d4cded44639112745171aec248"
