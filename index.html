@@ -125,6 +125,15 @@
     .cell { aspect-ratio: 1; }
     aside { position: static; max-height: 420px; }
   }
+  .fab { display: none; position: fixed; right: 16px; bottom: max(20px, env(safe-area-inset-bottom)); width: 58px; height: 58px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-text); font-size: 24px; box-shadow: var(--shadow); z-index: 30; cursor: pointer; }
+  @media (max-width: 900px) {
+    .fab { display: grid; place-items: center; }
+    body:not(.editing) .cell { cursor: default; }
+    body:not(.editing) .cell:hover { transform: none; box-shadow: none; }
+    body.editing .grid { touch-action: none; }
+    body.editing .fab { background: var(--ok); }
+  }
+  body.locked .fab { display: none; }
   @media (max-width: 560px) { .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } .stats { grid-template-columns: repeat(2, 1fr); } }
 
   aside { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
@@ -351,6 +360,7 @@
 </dialog>
 
 <div class="toast" id="toast"></div>
+<button type="button" class="fab" id="fab" aria-label="Editar números" aria-pressed="false">✏️</button>
 
 <script>
 const API = 'https://rifa-api.gustamc777.workers.dev';
@@ -721,8 +731,17 @@ function assign(pid) {
 }
 
 let dragging = false, dragMode = true;
+const mobile = matchMedia('(max-width: 900px)');
+const editOk = () => !mobile.matches || document.body.classList.contains('editing');
+$('fab').onclick = () => {
+  const on = document.body.classList.toggle('editing');
+  $('fab').textContent = on ? '✓' : '✏️';
+  $('fab').setAttribute('aria-pressed', on);
+  $('fab').setAttribute('aria-label', on ? 'Concluir edição' : 'Editar números');
+  if (on) { $('grid').scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('Toque ou arraste para marcar'); }
+};
 $('grid').addEventListener('pointerdown', ev => {
-  const c = ev.target.closest('.cell'); if (!c) return;
+  const c = ev.target.closest('.cell'); if (!c || !editOk()) return;
   const n = +c.dataset.n;
   dragging = true; dragMode = !selected.has(n);
   toggle(n, dragMode);
@@ -732,7 +751,13 @@ $('grid').addEventListener('pointerover', ev => {
   if (!dragging) return;
   const c = ev.target.closest('.cell'); if (c) toggle(+c.dataset.n, dragMode);
 });
-window.addEventListener('pointerup', () => { dragging = false; });
+$('grid').addEventListener('pointermove', ev => {
+  if (!dragging || ev.pointerType === 'mouse') return;
+  const el = document.elementFromPoint(ev.clientX, ev.clientY);
+  const c = el && el.closest('.cell');
+  if (c && selected.has(+c.dataset.n) !== dragMode) toggle(+c.dataset.n, dragMode);
+});
+['pointerup', 'pointercancel'].forEach(e => window.addEventListener(e, () => { dragging = false; }));
 $('grid').addEventListener('keydown', ev => {
   const c = ev.target.closest('.cell');
   if (c && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); toggle(+c.dataset.n, !selected.has(+c.dataset.n)); }
