@@ -134,7 +134,21 @@
     body.editing .fab { background: var(--ok); }
   }
   body.locked .fab { display: none; }
-  @media (max-width: 560px) { .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } .stats { grid-template-columns: repeat(2, 1fr); } }
+  body.grid-off .grid, body.grid-off .tools { display: none; }
+  @media (max-width: 900px) {
+    body:not(.editing) .grid { opacity: .45; filter: saturate(.6); }
+    .grid { transition: opacity .2s, filter .2s; }
+  }
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 3px; }
+    .cell { border-radius: 6px; padding: 0; }
+    .cell .n { font-size: 12px; }
+    .cell .who { display: none; }
+    .cell.paid { border-bottom-width: 3px; }
+    .cell.paid::before { font-size: 20px; }
+    .cell.selected { outline-width: 2px; outline-offset: 1px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+  }
 
   aside { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
   .side-head { padding: 14px 14px 10px; border-bottom: 1px solid var(--border); }
@@ -259,6 +273,7 @@
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap">
       <span class="sync" id="sync"></span>
+      <button class="btn" id="gridBtn" aria-expanded="true" aria-controls="grid">▾ Grid</button>
       <button class="btn" id="exportBtn">Exportar</button>
       <button class="btn" id="importBtn">Importar</button>
       <input type="file" id="importFile" accept="application/json" hidden>
@@ -733,8 +748,17 @@ function assign(pid) {
 let dragging = false, dragMode = true;
 const mobile = matchMedia('(max-width: 900px)');
 const editOk = () => !mobile.matches || document.body.classList.contains('editing');
+function setGrid(open) {
+  document.body.classList.toggle('grid-off', !open);
+  $('gridBtn').textContent = (open ? '▾' : '▸') + ' Grid';
+  $('gridBtn').setAttribute('aria-expanded', open);
+  try { localStorage.setItem('rifa-grid', open ? '1' : '0'); } catch {}
+}
+$('gridBtn').onclick = () => setGrid(document.body.classList.contains('grid-off'));
+try { if (localStorage.getItem('rifa-grid') === '0') setGrid(false); } catch {}
 $('fab').onclick = () => {
   const on = document.body.classList.toggle('editing');
+  if (on) setGrid(true);
   $('fab').textContent = on ? '✓' : '✏️';
   $('fab').setAttribute('aria-pressed', on);
   $('fab').setAttribute('aria-label', on ? 'Concluir edição' : 'Editar números');
